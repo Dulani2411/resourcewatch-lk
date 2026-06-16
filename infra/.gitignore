@@ -1,0 +1,15 @@
+.env
+.env.local
+frontend/node_modules/
+frontend/dist/
+backend/target/
+*.jar
+*.class
+.idea/
+.vscode/
+*.iml
+infra/terraform/.terraform/
+infra/terraform/*.tfstate
+infra/terraform/*.tfstate.backup
+.DS_Store
+Thumbs.db
