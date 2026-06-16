@@ -1,3 +1,4 @@
+node_modules/
 .env
 .env.local
 frontend/node_modules/
@@ -10,6 +11,5 @@ backend/target/
 *.iml
 infra/terraform/.terraform/
 infra/terraform/*.tfstate
-infra/terraform/*.tfstate.backup
 .DS_Store
 Thumbs.db
