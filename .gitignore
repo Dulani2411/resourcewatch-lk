@@ -8,6 +8,7 @@ backend/target/
 *.class
 .idea/
 .vscode/
+.vs/
 *.iml
 infra/terraform/.terraform/
 infra/terraform/*.tfstate
