@@ -1,0 +1,76 @@
+
+
+services:
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: rw_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-resourcewatch}
+      POSTGRES_USER: ${DB_USERNAME:-rw_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-rw_secret_password_change_me}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/src/main/resources/db/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-rw_user} -d ${DB_NAME:-resourcewatch}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: rw_backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://${DB_HOST:-postgres}:${DB_PORT:-5432}/${DB_NAME:-resourcewatch}
+      SPRING_DATASOURCE_USERNAME: ${DB_USERNAME:-rw_user}
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:-rw_secret_password_change_me}
+      OPENWEATHER_API_KEY: ${OPENWEATHER_API_KEY}
+      OPENWEATHER_BASE_URL: ${OPENWEATHER_BASE_URL:-https://api.openweathermap.org/data/2.5}
+      OPENWEATHER_CITY: ${OPENWEATHER_CITY:-Colombo}
+      OPENWEATHER_COUNTRY_CODE: ${OPENWEATHER_COUNTRY_CODE:-LK}
+      OLLAMA_HOST: ${OLLAMA_HOST:-http://ollama:11434}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3}
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev}
+    ports:
+      - "8090:8080"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8090/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: rw_frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "5173:80"
+
+  # ollama:
+  #   image: ollama/ollama:latest
+  #   container_name: rw_ollama
+  #   restart: unless-stopped
+  #   ports:
+  #     - "11434:11434"
+  #   volumes:
+  #     - ollama_data:/root/.ollama
+
+volumes:
+  postgres_data:
+    name: rw_postgres_data
+  # ollama_data:
+  #   name: rw_ollama_data
