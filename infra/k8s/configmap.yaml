@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: resourcewatch-config
+  namespace: resourcewatch
+data:
+  DB_HOST: postgres-service
+  DB_PORT: "5432"
+  DB_NAME: resourcewatch
+  DB_USERNAME: rw_user
+  OPENWEATHER_BASE_URL: https://api.openweathermap.org/data/2.5
+  OPENWEATHER_CITY: Colombo
+  OPENWEATHER_COUNTRY_CODE: LK
+  OLLAMA_HOST: http://ollama-service:11434
+  OLLAMA_MODEL: llama3
+  SPRING_PROFILES_ACTIVE: dev

@@ -14,3 +14,5 @@ infra/terraform/.terraform/
 infra/terraform/*.tfstate
 .DS_Store
 Thumbs.db
+.env
+infra/.env
