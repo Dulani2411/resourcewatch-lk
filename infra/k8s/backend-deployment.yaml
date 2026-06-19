@@ -43,10 +43,16 @@ spec:
                 configMapKeyRef:
                   name: resourcewatch-config
                   key: DB_USERNAME
-            - name: SPRING_DATASOURCE_PASSWORD
-              value: rw_secret_password_change_me
             - name: OPENWEATHER_API_KEY
-              value: your_api_key_here
+              valueFrom:
+                secretKeyRef:
+                  name: resourcewatch-secrets
+                  key: OPENWEATHER_API_KEY
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: resourcewatch-secrets
+                  key: DB_PASSWORD
           readinessProbe:
             httpGet:
               path: /actuator/health

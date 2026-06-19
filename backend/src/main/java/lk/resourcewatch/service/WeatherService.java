@@ -8,6 +8,7 @@ import org.springframework.web.reactive.function.client.WebClient;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -24,7 +25,7 @@ public class WeatherService {
     private String baseUrl;
 
     @Value("${openweather.city}")
-    private String city;
+    private String defaultCity;
 
     @Value("${openweather.country-code}")
     private String countryCode;
@@ -34,8 +35,13 @@ public class WeatherService {
         this.webClient = WebClient.builder().build();
     }
 
-    // Called by scheduler every 3 hours
+    // Called by scheduler every 3 hours — uses default city (Colombo)
     public void fetchAndSaveWeather() {
+        fetchAndSaveWeather(defaultCity);
+    }
+
+    // Fetch weather for ANY city
+    public WeatherSnapshot fetchAndSaveWeather(String city) {
         String url = baseUrl + "/weather?q=" + city + "," + countryCode
                 + "&appid=" + apiKey + "&units=metric";
 
@@ -47,29 +53,35 @@ public class WeatherService {
                     .block();
 
             if (response != null) {
-                WeatherSnapshot snapshot = mapToSnapshot(response);
+                WeatherSnapshot snapshot = mapToSnapshot(response, city);
                 repository.save(snapshot);
-                System.out.println("✅ Weather fetched and saved: " + snapshot.getTemperature() + "°C");
+                System.out.println("✅ Weather fetched for " + city + ": " + snapshot.getTemperature() + "°C");
+                return snapshot;
             }
 
         } catch (Exception e) {
-            System.err.println("❌ Failed to fetch weather: " + e.getMessage());
+            System.err.println("❌ Failed to fetch weather for " + city + ": " + e.getMessage());
         }
+        return null;
     }
 
-    // Get latest saved weather from database
+    // Get latest saved weather for a specific city (or default city if none given)
+    public Optional<WeatherSnapshot> getLatest(String city) {
+        String location = city + ", " + countryCode;
+        return repository.findTopByLocationOrderByFetchedAtDesc(location);
+    }
+
+    // Get latest saved weather (default city — used by scheduler / backward compatibility)
     public Optional<WeatherSnapshot> getLatest() {
         return repository.findTopByOrderByFetchedAtDesc();
     }
 
-    // Map OpenWeather API response to our entity
     @SuppressWarnings("unchecked")
-    private WeatherSnapshot mapToSnapshot(Map response) {
+    private WeatherSnapshot mapToSnapshot(Map response, String city) {
         WeatherSnapshot snapshot = new WeatherSnapshot();
         snapshot.setFetchedAt(LocalDateTime.now());
         snapshot.setLocation(city + ", " + countryCode);
 
-        // Main weather data
         Map main = (Map) response.get("main");
         if (main != null) {
             snapshot.setTemperature(toBigDecimal(main.get("temp")));
@@ -77,13 +89,11 @@ public class WeatherService {
             snapshot.setHumidity(toInteger(main.get("humidity")));
         }
 
-        // Wind data
         Map wind = (Map) response.get("wind");
         if (wind != null) {
             snapshot.setWindSpeed(toBigDecimal(wind.get("speed")));
         }
 
-        // Rainfall data (may not exist if no rain)
         Map rain = (Map) response.get("rain");
         if (rain != null && rain.get("1h") != null) {
             snapshot.setRainfallMm(toBigDecimal(rain.get("1h")));
@@ -91,8 +101,7 @@ public class WeatherService {
             snapshot.setRainfallMm(BigDecimal.ZERO);
         }
 
-        // Weather description
-        java.util.List weatherList = (java.util.List) response.get("weather");
+        List weatherList = (List) response.get("weather");
         if (weatherList != null && !weatherList.isEmpty()) {
             Map weatherItem = (Map) weatherList.get(0);
             snapshot.setDescription((String) weatherItem.get("description"));
