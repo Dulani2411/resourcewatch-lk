@@ -5,9 +5,7 @@ import lk.resourcewatch.service.WeatherService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 
 @RestController
 @RequestMapping("/api/weather")
@@ -16,18 +14,68 @@ public class WeatherController {
 
     private final WeatherService weatherService;
 
-    // Supported Sri Lanka cities
-    private static final List<String> SUPPORTED_CITIES = List.of(
-        "Colombo", "Kandy", "Galle", "Jaffna", "Negombo",
-        "Kurunegala", "Anuradhapura", "Matara", "Trincomalee", "Batticaloa"
-    );
+    // All 25 official Sri Lankan districts, grouped by province,
+    // each mapped to its district-capital city (used for weather lookup)
+    private static final Map<String, Map<String, String>> PROVINCE_DISTRICTS = new LinkedHashMap<>();
+
+    static {
+        Map<String, String> western = new LinkedHashMap<>();
+        western.put("Colombo", "Colombo");
+        western.put("Gampaha", "Gampaha");
+        western.put("Kalutara", "Kalutara");
+        PROVINCE_DISTRICTS.put("Western", western);
+
+        Map<String, String> central = new LinkedHashMap<>();
+        central.put("Kandy", "Kandy");
+        central.put("Matale", "Matale");
+        central.put("Nuwara Eliya", "Nuwara Eliya");
+        PROVINCE_DISTRICTS.put("Central", central);
+
+        Map<String, String> southern = new LinkedHashMap<>();
+        southern.put("Galle", "Galle");
+        southern.put("Matara", "Matara");
+        southern.put("Hambantota", "Hambantota");
+        PROVINCE_DISTRICTS.put("Southern", southern);
+
+        Map<String, String> northern = new LinkedHashMap<>();
+        northern.put("Jaffna", "Jaffna");
+        northern.put("Kilinochchi", "Kilinochchi");
+        northern.put("Mannar", "Mannar");
+        northern.put("Vavuniya", "Vavuniya");
+        northern.put("Mullaitivu", "Mullaitivu");
+        PROVINCE_DISTRICTS.put("Northern", northern);
+
+        Map<String, String> eastern = new LinkedHashMap<>();
+        eastern.put("Trincomalee", "Trincomalee");
+        eastern.put("Batticaloa", "Batticaloa");
+        eastern.put("Ampara", "Ampara");
+        PROVINCE_DISTRICTS.put("Eastern", eastern);
+
+        Map<String, String> northWestern = new LinkedHashMap<>();
+        northWestern.put("Kurunegala", "Kurunegala");
+        northWestern.put("Puttalam", "Puttalam");
+        PROVINCE_DISTRICTS.put("North Western", northWestern);
+
+        Map<String, String> northCentral = new LinkedHashMap<>();
+        northCentral.put("Anuradhapura", "Anuradhapura");
+        northCentral.put("Polonnaruwa", "Polonnaruwa");
+        PROVINCE_DISTRICTS.put("North Central", northCentral);
+
+        Map<String, String> uva = new LinkedHashMap<>();
+        uva.put("Badulla", "Badulla");
+        uva.put("Monaragala", "Monaragala");
+        PROVINCE_DISTRICTS.put("Uva", uva);
+
+        Map<String, String> sabaragamuwa = new LinkedHashMap<>();
+        sabaragamuwa.put("Ratnapura", "Ratnapura");
+        sabaragamuwa.put("Kegalle", "Kegalle");
+        PROVINCE_DISTRICTS.put("Sabaragamuwa", sabaragamuwa);
+    }
 
     public WeatherController(WeatherService weatherService) {
         this.weatherService = weatherService;
     }
 
-    // GET http://localhost:8080/api/weather/latest
-    // GET http://localhost:8080/api/weather/latest?city=Kandy
     @GetMapping("/latest")
     public ResponseEntity<?> getLatest(@RequestParam(required = false) String city) {
 
@@ -37,7 +85,6 @@ public class WeatherController {
             if (snapshot.isPresent()) {
                 return ResponseEntity.ok(snapshot.get());
             } else {
-                // No data yet for this city — fetch it immediately
                 WeatherSnapshot fresh = weatherService.fetchAndSaveWeather(city);
                 if (fresh != null) {
                     return ResponseEntity.ok(fresh);
@@ -49,7 +96,6 @@ public class WeatherController {
             }
         }
 
-        // No city given — return default (Colombo)
         Optional<WeatherSnapshot> snapshot = weatherService.getLatest();
         if (snapshot.isPresent()) {
             return ResponseEntity.ok(snapshot.get());
@@ -60,14 +106,25 @@ public class WeatherController {
         ));
     }
 
-    // GET http://localhost:8080/api/weather/cities
-    // Returns list of supported cities for the dropdown
-    @GetMapping("/cities")
-    public ResponseEntity<List<String>> getCities() {
-        return ResponseEntity.ok(SUPPORTED_CITIES);
+    // GET /api/weather/provinces
+    // Returns { "Western": ["Colombo","Gampaha","Kalutara"], "Central": [...], ... }
+    @GetMapping("/provinces")
+    public ResponseEntity<Map<String, List<String>>> getProvinces() {
+        Map<String, List<String>> result = new LinkedHashMap<>();
+        PROVINCE_DISTRICTS.forEach((province, districts) ->
+            result.put(province, new ArrayList<>(districts.keySet()))
+        );
+        return ResponseEntity.ok(result);
     }
 
-    // GET http://localhost:8080/api/weather/fetch
+    // Kept for backward compatibility — flat list of all district capitals
+    @GetMapping("/cities")
+    public ResponseEntity<List<String>> getCities() {
+        List<String> all = new ArrayList<>();
+        PROVINCE_DISTRICTS.values().forEach(d -> all.addAll(d.values()));
+        return ResponseEntity.ok(all);
+    }
+
     @GetMapping("/fetch")
     public ResponseEntity<?> triggerFetch(@RequestParam(required = false) String city) {
         WeatherSnapshot result = weatherService.fetchAndSaveWeather(city != null ? city : "Colombo");

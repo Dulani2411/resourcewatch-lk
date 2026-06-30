@@ -1,30 +1,32 @@
 import { useState, useEffect } from 'react';
-import { getLatestWeather, getWaterRisk, getPowerStress, getReports } from '../services/api';
+import { getLatestWeather, getWaterRisk, getPowerStress, getReports, getCities } from '../services/api';
 import MetricCard from '../components/MetricCard';
 import RiskBadge from '../components/RiskBadge';
 
-const districts = [
-  'Colombo', 'Gampaha', 'Kandy', 'Galle',
-  'Matara', 'Kurunegala', 'Anuradhapura', 'Jaffna'
-];
-
 const Overview = () => {
-  const [weather, setWeather]     = useState(null);
-  const [waterRisk, setWaterRisk] = useState(null);
+  const [weather, setWeather]         = useState(null);
+  const [waterRisk, setWaterRisk]     = useState(null);
   const [powerStress, setPowerStress] = useState(null);
-  const [reports, setReports]     = useState([]);
-  const [loading, setLoading]     = useState(true);
+  const [reports, setReports]         = useState([]);
+  const [cities, setCities]           = useState(['Colombo']);
+  const [selectedCity, setSelectedCity] = useState('Colombo');
+  const [loading, setLoading]         = useState(true);
+  const [weatherLoading, setWeatherLoading] = useState(false);
 
+  // Load list of cities once
   useEffect(() => {
-    const fetchAll = async () => {
+    getCities().then(res => setCities(res.data)).catch(() => {});
+  }, []);
+
+  // Load risk + reports once (these are Colombo-wide, not city-specific yet)
+  useEffect(() => {
+    const fetchStatic = async () => {
       try {
-        const [w, wr, ps, r] = await Promise.all([
-          getLatestWeather(),
+        const [wr, ps, r] = await Promise.all([
           getWaterRisk(),
           getPowerStress(),
           getReports(),
         ]);
-        setWeather(w.data);
         setWaterRisk(wr.data);
         setPowerStress(ps.data);
         setReports(r.data);
@@ -34,8 +36,30 @@ const Overview = () => {
         setLoading(false);
       }
     };
-    fetchAll();
+    fetchStatic();
   }, []);
+
+  // Load weather whenever selected city changes
+ useEffect(() => {
+  let isCurrent = true; // tracks if this effect is still the latest one
+
+  setWeatherLoading(true);
+  getLatestWeather(selectedCity)
+    .then(res => {
+      if (isCurrent) setWeather(res.data);
+    })
+    .catch(err => {
+      if (isCurrent) console.error('Weather error:', err);
+    })
+    .finally(() => {
+      if (isCurrent) setWeatherLoading(false);
+    });
+
+  // Cleanup: if selectedCity changes again before this finishes, mark this effect stale
+  return () => {
+    isCurrent = false;
+  };
+}, [selectedCity]);
 
   if (loading) return (
     <div style={{ padding: '40px', textAlign: 'center', color: '#888' }}>
@@ -45,27 +69,43 @@ const Overview = () => {
 
   return (
     <div style={{ padding: '20px', maxWidth: '1200px', margin: '0 auto' }}>
-      <h2 style={{ color: '#fff', marginBottom: '20px' }}>
-        🌍 Overview — Colombo, Sri Lanka
-      </h2>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
+        <h2 style={{ color: '#fff', margin: 0 }}>
+          🌍 Overview — {selectedCity}, Sri Lanka
+        </h2>
+
+        <select
+          value={selectedCity}
+          onChange={e => setSelectedCity(e.target.value)}
+          style={{
+            padding: '8px 14px', fontSize: '13px',
+            background: '#1a1a2e', border: '1px solid #2a2a4a',
+            borderRadius: '8px', color: '#fff', cursor: 'pointer',
+          }}
+        >
+          {cities.map(city => (
+            <option key={city} value={city}>{city}</option>
+          ))}
+        </select>
+      </div>
 
       {/* Metric Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginBottom: '20px' }}>
         <MetricCard
           title="🌡️ Temperature"
-          value={weather ? `${weather.temperature}°C` : 'N/A'}
-          subtitle="Current conditions"
+          value={weatherLoading ? '...' : weather?.temperature != null ? `${weather.temperature}°C` : 'N/A'}
+          subtitle={weather?.description || 'Current conditions'}
           color="#EF9F27"
         />
         <MetricCard
           title="💧 Humidity"
-          value={weather ? `${weather.humidity}%` : 'N/A'}
+          value={weatherLoading ? '...' : weather?.humidity != null ? `${weather.humidity}%` : 'N/A'}
           subtitle="Relative humidity"
           color="#378ADD"
         />
         <MetricCard
           title="🌧️ Rainfall"
-          value={weather ? `${weather.rainfallMm}mm` : 'N/A'}
+          value={weatherLoading ? '...' : weather?.rainfallMm != null ? `${weather.rainfallMm}mm` : 'N/A'}
           subtitle="Last reading"
           color="#1D9E75"
         />
